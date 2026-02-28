@@ -1,11 +1,12 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsUUID, ValidateIf } from 'class-validator';
 
 export class UpdateTransactionDto {
   @IsOptional()
-  @IsString()
-  categoryId?: string;
+  @ValidateIf((_, v) => v != null)
+  @IsUUID()
+  category_id?: string | null;
 
   @IsOptional()
   @IsBoolean()
-  isExcluded?: boolean;
+  is_excluded?: boolean;
 }

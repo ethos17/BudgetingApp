@@ -65,51 +65,93 @@ async function main() {
     console.log('Demo user exists; password hash updated.');
   }
 
-  let accounts = await prisma.connectedAccount.findMany({
-    where: { user_id: user.id, provider: Provider.MOCK },
-  });
-  if (accounts.length === 0) {
-    accounts = await Promise.all([
-      prisma.connectedAccount.create({
-        data: { user_id: user.id, provider: Provider.MOCK, name: 'Mock Checking', type: AccountType.CHECKING },
-      }),
-      prisma.connectedAccount.create({
-        data: { user_id: user.id, provider: Provider.MOCK, name: 'Mock Credit Card', type: AccountType.CREDIT },
-      }),
-      prisma.connectedAccount.create({
-        data: { user_id: user.id, provider: Provider.MOCK, name: 'Mock Debit', type: AccountType.DEBIT },
-      }),
-    ]);
-    console.log('Created 3 mock accounts.');
+  const seedAccounts = [
+    { provider: Provider.CHASE, name: 'Chase Checking', type: AccountType.CHECKING },
+    { provider: Provider.SOFI, name: 'SoFi Money', type: AccountType.CHECKING },
+    { provider: Provider.DISCOVER, name: 'Discover It', type: AccountType.CREDIT },
+  ];
+  const accounts: { id: string; provider: Provider; name: string; type: AccountType }[] = [];
+  for (const a of seedAccounts) {
+    let acc = await prisma.connectedAccount.findFirst({
+      where: { user_id: user.id, provider: a.provider, name: a.name },
+    });
+    if (!acc) {
+      acc = await prisma.connectedAccount.create({
+        data: { user_id: user.id, provider: a.provider, name: a.name, type: a.type },
+      });
+      console.log('Created account:', a.name);
+    }
+    accounts.push(acc);
   }
+  if (accounts.length === 3) console.log('3 demo accounts ready.');
 
-  const txCount = await prisma.transaction.count({ where: { user_id: user.id } });
-  if (txCount === 0) {
+  const ninetyDaysAgo = new Date(now);
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  await prisma.transaction.deleteMany({
+    where: {
+      user_id: user.id,
+      effective_date: { gte: ninetyDaysAgo },
+      provider_transaction_id: { startsWith: 'SEED_' },
+    },
+  });
+  const existingSeedCount = await prisma.transaction.count({
+    where: { user_id: user.id, provider_transaction_id: { startsWith: 'SEED_' } },
+  });
+  if (existingSeedCount === 0) {
     const rng = seededRandom(42);
-    const merchants = ['Whole Foods', "Trader Joe's", 'Uber', 'Starbucks', 'Electric Co', 'Payroll Inc.', 'Target', 'Amazon'];
-
+    const merchants = [
+      "Trader Joe's",
+      'Whole Foods',
+      'Shell',
+      'Netflix',
+      'Amazon',
+      'Target',
+      'Uber',
+      'Starbucks',
+      'Electric Co',
+      'Rent Payment',
+      'Payroll Deposit',
+      'Venmo',
+      'Spotify',
+    ];
+    const gas = categories.find((c) => c.name === 'Gas')!;
+    const entertainment = categories.find((c) => c.name === 'Entertainment')!;
+    const shopping = categories.find((c) => c.name === 'Shopping')!;
+    const fees = categories.find((c) => c.name === 'Fees')!;
+    let inserted = 0;
     for (let i = 0; i < 90; i++) {
       const day = new Date(now);
       day.setDate(day.getDate() - i);
+      const isRecentWeek = i <= 7;
       for (const account of accounts) {
         const n = 1 + Math.floor(rng() * 2);
         for (let j = 0; j < n; j++) {
           const merchant = merchants[Math.floor(rng() * merchants.length)];
-          const amount = Math.floor(rng() * 15000) + 500;
-          const isIncome = merchant === 'Payroll Inc.';
+          const amount = Math.floor(rng() * 20000) + 500;
+          const isIncome = merchant === 'Payroll Deposit';
           const signed = isIncome ? amount : -amount;
           const effective = new Date(day);
-          effective.setHours(10 + Math.floor(rng() * 8), Math.floor(rng() * 60), 0, 0);
+          effective.setHours(8 + Math.floor(rng() * 10), Math.floor(rng() * 60), 0, 0);
+          const isPending = isRecentWeek && rng() < 0.35;
+          const isTransfer = merchant === 'Venmo' && rng() < 0.5;
           const category =
             merchant === 'Whole Foods' || merchant === "Trader Joe's"
               ? groceries
               : merchant === 'Starbucks'
                 ? dining
-                : merchant === 'Electric Co'
-                  ? rent
-                  : merchant === 'Payroll Inc.'
-                    ? transfer
-                    : uncategorized;
+                : merchant === 'Shell'
+                  ? gas
+                  : merchant === 'Electric Co' || merchant === 'Rent Payment'
+                    ? rent
+                    : merchant === 'Netflix' || merchant === 'Spotify'
+                      ? entertainment
+                      : merchant === 'Amazon' || merchant === 'Target'
+                        ? shopping
+                        : merchant === 'Payroll Deposit'
+                          ? transfer
+                          : rng() < 0.15
+                            ? undefined
+                            : uncategorized;
 
           await prisma.transaction.create({
             data: {
@@ -118,19 +160,21 @@ async function main() {
               amount_cents: signed,
               currency: 'USD',
               effective_date: effective,
-              posted_at: effective,
+              posted_at: isPending ? null : effective,
               merchant_name: merchant,
-              description: `${merchant} tx`,
-              status: 'POSTED',
-              category_id: category.id,
-              provider: Provider.MOCK,
-              provider_transaction_id: `T_${account.id}_${i}_${j}`,
+              description: `${merchant}`,
+              status: isPending ? 'PENDING' : 'POSTED',
+              category_id: category?.id ?? null,
+              is_excluded: isTransfer,
+              provider: account.provider,
+              provider_transaction_id: `SEED_${account.id}_${i}_${j}`,
             },
           });
+          inserted++;
         }
       }
     }
-    console.log('Created ~200 sample transactions.');
+    console.log('Created', inserted, 'seed transactions (90 days).');
   }
 
   const currentMonth = now.toISOString().slice(0, 7);

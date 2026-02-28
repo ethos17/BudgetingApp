@@ -1,8 +1,9 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { User } from '../common/decorators/user.decorator';
 import { JwtPayload } from '../common/types/request-with-user';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { AccountsService } from './accounts.service';
+import { LinkAccountDto } from './dto/link-account.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('accounts')
@@ -15,7 +16,9 @@ export class AccountsController {
   }
 
   @Post('mock-link')
-  mockLink(@User() user: JwtPayload) {
-    return this.accountsService.ensureMockAccounts(user.sub);
+  @HttpCode(HttpStatus.CREATED)
+  async mockLink(@User() user: JwtPayload, @Body() dto: LinkAccountDto) {
+    const account = await this.accountsService.linkAccount(user.sub, dto);
+    return account;
   }
 }
