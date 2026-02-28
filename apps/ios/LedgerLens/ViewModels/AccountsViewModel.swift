@@ -30,13 +30,17 @@ final class AccountsViewModel: ObservableObject {
         do {
             let list: [Account] = try await client.request(path: "/accounts")
             accounts = list
-        } catch APIError.httpStatus(401, _) {
-            sessionStore.handleAPIError(error as! APIError)
+        } catch let e as APIError {
+            sessionStore.handleAPIError(e)
+            if case .httpStatus(401, _) = e { } else {
+                switch e {
+                case .backend(let b): errorMessage = b.error.message
+                case .httpStatus(_, let m): errorMessage = m ?? String(describing: e)
+                default: errorMessage = String(describing: e)
+                }
+            }
         } catch {
-            errorMessage = (error as? APIError).map { e in
-                if case .backend(let b) = e { return b.error.message }
-                return String(describing: e)
-            } ?? error.localizedDescription
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -56,7 +60,9 @@ final class AccountsViewModel: ObservableObject {
                 body: Body(provider: selectedProvider, name: accountName.isEmpty ? "Account" : accountName, type: selectedType)
             )
             await load()
-        } catch APIError.httpStatus(409, _), APIError.backend(let be) where be.error.code == "CONFLICT" || be.error.message.lowercased().contains("already") {
+        } catch APIError.httpStatus(409, _) {
+            addSheetError = "Account already linked."
+        } catch APIError.backend(let be) where be.error.code == "CONFLICT" || be.error.message.lowercased().contains("already") {
             addSheetError = "Account already linked."
         } catch APIError.backend(let be) {
             addSheetError = be.error.message

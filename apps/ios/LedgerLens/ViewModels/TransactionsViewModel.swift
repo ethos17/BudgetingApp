@@ -30,8 +30,8 @@ final class TransactionsViewModel: ObservableObject {
         do {
             let list: [Account] = try await client.request(path: "/accounts")
             accounts = list
-        } catch APIError.httpStatus(401, _) {
-            sessionStore.handleAPIError(error as! APIError)
+        } catch let e as APIError {
+            if case .httpStatus(401, _) = e { sessionStore.handleAPIError(e) }
         } catch { /* ignore for accounts */ }
     }
 
@@ -62,14 +62,17 @@ final class TransactionsViewModel: ObservableObject {
                 transactions = response.data
             }
             nextCursor = response.nextCursor
-        } catch APIError.httpStatus(401, _) {
-            sessionStore.handleAPIError(error as! APIError)
+        } catch let e as APIError {
+            sessionStore.handleAPIError(e)
+            if case .httpStatus(401, _) = e { } else {
+                switch e {
+                case .backend(let b): errorMessage = b.error.message
+                case .httpStatus(_, let m): errorMessage = m ?? String(describing: e)
+                default: errorMessage = String(describing: e)
+                }
+            }
         } catch {
-            errorMessage = (error as? APIError).map { e in
-                if case .backend(let b) = e { return b.error.message }
-                if case .httpStatus(_, let m) = e, let m = m { return m }
-                return String(describing: e)
-            } ?? error.localizedDescription
+            errorMessage = error.localizedDescription
         }
     }
 

@@ -1,10 +1,12 @@
 # LedgerLens iOS
 
-SwiftUI iOS app (iOS 17+) that connects to the LedgerLens NestJS backend.
+SwiftUI iOS app (iOS 17+) that connects to the LedgerLens NestJS backend. The app uses cookie-based JWT auth (httpOnly); the Simulator talks to the backend at **http://127.0.0.1:3000**.
 
-## Run the backend
+---
 
-From the monorepo root:
+## 1. Run the backend
+
+From the **monorepo root** (e.g. `BudgetingApp/`):
 
 ```bash
 pnpm install
@@ -13,60 +15,85 @@ pnpm -C apps/api exec prisma db seed
 pnpm -C apps/api start
 ```
 
-The API runs at **http://localhost:3000** (or set `PORT`).
+The API runs at **http://127.0.0.1:3000** (or **http://localhost:3000**). The iOS app is configured to use **http://127.0.0.1:3000** for the Simulator.
 
-Demo user: `demo@ledgerlens.local` / `Password123!`
+---
 
-## Create the Xcode project
+## 2. Open the iOS project in Xcode
 
-1. Open Xcode → **File → New → Project**.
-2. Choose **App** (iOS), then:
-   - Product Name: **LedgerLens**
-   - Team: your team
-   - Organization Identifier: e.g. `com.ledgerlens`
-   - Interface: **SwiftUI**
-   - Language: **Swift**
-   - Minimum Deployments: **iOS 17.0**
-   - Uncheck "Include Tests" if you want to add them later.
-3. Save the project inside this folder: `apps/ios/` (so the project lives at `apps/ios/LedgerLens.xcodeproj` and the app code is in `apps/ios/LedgerLens/`).
-4. **Add the existing LedgerLens source files** to the app target:
-   - In the Project Navigator, right‑click the `LedgerLens` group (the one that already has `LedgerLensApp.swift` and `ContentView.swift`).
-   - Delete the default `ContentView.swift` if Xcode created one (we use our own views).
-   - **Add the rest of the source tree**: drag the `LedgerLens` folder (Models, Services, ViewModels, Views, Utilities) into the LedgerLens group and ensure **Copy items if needed** is unchecked and **Add to targets: LedgerLens** is checked.
-   - Ensure these are in the target:
-     - `LedgerLensApp.swift`
-     - `Models/Models.swift`
-     - `Services/APIClient.swift`, `Services/SessionStore.swift`
-     - `ViewModels/*.swift`
-     - `Views/**/*.swift`
-     - `Utilities/MoneyFormatter.swift`
-     - `RootView.swift`, `MainTabView.swift`
-5. **Info.plist**: In the project’s **Info** tab (or target **Info**), add App Transport Security so the Simulator can call `http://localhost` or `http://127.0.0.1`:
-   - Add **App Transport Security Settings** (Dictionary).
-   - Under it add **Exception Domains** (Dictionary).
-   - Add key **localhost** (Dictionary) with **Allow Insecure HTTP Loads** = YES.
-   - Add key **127.0.0.1** (Dictionary) with **Allow Insecure HTTP Loads** = YES.
-   - Alternatively, add the existing `Info.plist` from this repo to the target and remove the default one if your template generated it.
+1. Open **Xcode**.
+2. **File → Open** (or **Open a project or file**).
+3. Navigate to:  
+   `apps/ios/LedgerLensApp/LedgerLensApp.xcodeproj`  
+   and open it.
+4. The project is set up to use source files from the sibling folder **`LedgerLens`** (`apps/ios/LedgerLens/`). The **LedgerLens** group in the Project Navigator should show all Swift files (Models, Services, ViewModels, Views, Utilities). If you see missing (red) files, follow **Section 3** below.
 
-## Base URL
+---
 
-The app uses **http://127.0.0.1:3000** by default so the Simulator can reach the backend on your Mac.
+## 3. If the LedgerLens source folder is not in the target (red/missing files)
 
-- To change it: edit `APIClient.shared.baseURL` in code (e.g. in `Services/APIClient.swift`), or add a simple settings screen that sets `APIClient.shared.baseURL` (e.g. from UserDefaults) before any requests.
-- If the backend runs on the same Mac as the Simulator, **http://localhost:3000** or **http://127.0.0.1:3000** both work; 127.0.0.1 is often more reliable in Simulator.
+If the **LedgerLens** group is empty or files are red, add the existing **LedgerLens** folder to the target:
 
-## Build and run
+1. In the **Project Navigator** (left sidebar), **right‑click** the **LedgerLensApp** group (the one that contains **LedgerLens** and **Products**).
+2. Choose **“Add Files to ‘LedgerLensApp’…”**.
+3. In the file picker, go to:  
+   `apps/ios/LedgerLens`  
+   (the folder that contains `LedgerLensApp.swift`, `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`).
+4. Select the **LedgerLens** folder (do **not** go inside it).
+5. **Important:**
+   - Leave **“Copy items if needed”** **unchecked** (we use the existing folder).
+   - **“Add to targets:”** → check **LedgerLensApp**.
+   - **“Create groups”** (not “Create folder references”).
+6. Click **Add**.
+7. In the Project Navigator you should now see the **LedgerLens** group with all Swift files. Ensure every `.swift` file under LedgerLens has **LedgerLensApp** in its **Target Membership** (select the file → File inspector → check **LedgerLensApp**).
 
-1. Select the **LedgerLens** scheme and a Simulator (e.g. iPhone 16).
-2. **Product → Run** (⌘R).
-3. On the login screen use the demo user above, or sign up.
+---
 
-## Features
+## 4. App Transport Security (ATS)
 
-- **Auth**: Login, signup, logout; cookie-based session; on launch `GET /me` determines logged-in state; 401 forces logout.
-- **Dashboard**: Month selector, summary cards (spent, income, count, excluded), recent transactions.
-- **Transactions**: Month/account/status/search filters, include excluded toggle, list grouped by date, cursor pagination (“Load more”), swipe to exclude/include, tap for detail sheet (category picker, excluded toggle, save).
-- **Accounts**: List of linked accounts; “Add account” sheet with provider/name/type and `POST /accounts/mock-link`; 409 shows “Account already linked”.
-- **Settings**: Toggles for `include_pending_in_budget` and `notify_on_pending` (GET/PATCH); “Saved” feedback; Log out.
+The app target uses **LedgerLensApp/Info.plist**, which already allows HTTP to **127.0.0.1**:
 
-All API calls use a single `APIClient` with cookie-capable `URLSession`; no manual cookie handling.
+- **NSAppTransportSecurity** → **NSExceptionDomains** → **127.0.0.1** → **NSExceptionAllowsInsecureHTTPLoads** = **YES**
+
+No extra ATS steps are required if you use the provided project and Info.plist.
+
+---
+
+## 5. Build and run in the Simulator
+
+1. Select the **LedgerLensApp** scheme (top bar).
+2. Select an **iOS Simulator** (e.g. iPhone 16).
+3. **Product → Run** (⌘R).
+4. When the app launches, you should see the **Login** screen.
+
+---
+
+## 6. Simulator test checklist (demo credentials)
+
+Use these credentials to verify the full flow:
+
+- **Email:** `demo@ledgerlens.local`  
+- **Password:** `Password123!`
+
+| Step | Action | Expected result |
+|------|--------|-----------------|
+| 1 | Start backend (Section 1), then run app in Simulator (Section 5). | App shows Login screen. |
+| 2 | Enter demo email and password, tap **Sign In**. | Session is established via httpOnly cookie; app switches to the main tab UI (Dashboard, Transactions, Accounts, Settings). |
+| 3 | Open **Accounts** tab. | List of accounts loads from **GET /accounts** (e.g. Chase, SoFi, Discover if seeded). |
+| 4 | Open **Transactions** tab. | Transactions load from **GET /transactions** with default filters; list shows and “Load more” appears if there is a **nextCursor**. |
+| 5 | Tap a transaction → change **Excluded from budget** or **Category** → **Save**. | **PATCH /transactions/:id** runs; list/detail reflects the update (e.g. `is_excluded` toggled or `category_id = null`). |
+| 6 | Open **Settings** tab. | **GET /settings** loads; toggles show current values. |
+| 7 | Toggle **Include pending in budget** or **Notify on pending**. | **PATCH /settings** is sent; a “Saved” (or similar) indication appears. |
+| 8 | (Optional) Sign out from Settings, then sign in again with demo credentials. | Session persists via cookies; after login you see the main tabs again. |
+| 9 | (Optional) Stop backend and trigger any API call (e.g. pull to refresh). | If the backend returns **401**, the app clears session and returns to the Login screen. |
+
+---
+
+## Implementation notes
+
+- **APIClient** (`Services/APIClient.swift`): `baseURL = "http://127.0.0.1:3000"`; uses default `URLSession` so **httpOnly cookies** are stored and sent automatically (no manual cookie reading).
+- **SessionStore** (`Services/SessionStore.swift`): On launch calls **GET /me** to determine session; provides login/signup/logout; **handleAPIError** forces logout on **401**.
+- **Transactions**: List uses **GET /transactions** with **cursor** and **nextCursor** for “Load more”; detail sheet and swipe actions use **PATCH /transactions/:id** for `is_excluded` and `category_id`.
+- **Settings**: **GET /settings** and **PATCH /settings** for the two toggles; optimistic UI with “Saved” feedback.
+
+No SPM or other dependencies are required.

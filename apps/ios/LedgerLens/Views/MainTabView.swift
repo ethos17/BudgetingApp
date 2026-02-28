@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @ObservedObject var sessionStore: SessionStore
     @StateObject private var dashboardVM: DashboardViewModel
     @StateObject private var transactionsVM: TransactionsViewModel
     @StateObject private var accountsVM: AccountsViewModel
