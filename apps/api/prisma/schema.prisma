@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Provider {
+  CHASE
+  SOFI
+  DISCOVER
+  MOCK
+}
+
+enum AccountType {
+  CHECKING
+  DEBIT
+  CREDIT
+}
+
+enum TransactionStatus {
+  PENDING
+  POSTED
+}
+
+enum RuleMatchType {
+  MERCHANT_CONTAINS
+}
+
+model User {
+  id                         String    @id @default(uuid()) @db.Uuid
+  email                      String    @unique
+  password_hash              String
+  include_pending_in_budget  Boolean   @default(false)
+  notify_on_pending          Boolean   @default(false)
+  created_at                 DateTime  @default(now())
+  updated_at                 DateTime  @updatedAt
+
+  accounts                   ConnectedAccount[]
+  transactions               Transaction[]
+  budgets                    Budget[]
+  rules                      Rule[]
+  notifications              Notification[]
+}
+
+model ConnectedAccount {
+  id           String    @id @default(uuid()) @db.Uuid
+  user_id      String    @db.Uuid
+  provider     Provider
+  name         String
+  type         AccountType
+  last_sync_at DateTime?
+  created_at   DateTime  @default(now())
+
+  user         User      @relation(fields: [user_id], references: [id])
+  transactions Transaction[]
+}
+
+model Transaction {
+  id                      String             @id @default(uuid()) @db.Uuid
+  user_id                 String             @db.Uuid
+  account_id              String             @db.Uuid
+  amount_cents            Int
+  currency                String
+  authorized_at           DateTime?
+  posted_at               DateTime?
+  effective_date          DateTime
+  merchant_name           String
+  description             String?
+  status                  TransactionStatus
+  category_id             String?            @db.Uuid
+  is_excluded             Boolean            @default(false)
+  provider                Provider
+  provider_transaction_id String?
+  provider_pending_id     String?
+  metadata                Json?
+  created_at              DateTime           @default(now())
+  updated_at              DateTime           @updatedAt
+
+  user                    User               @relation(fields: [user_id], references: [id])
+  account                 ConnectedAccount   @relation(fields: [account_id], references: [id])
+  category                Category?          @relation(fields: [category_id], references: [id])
+
+  @@index([user_id, effective_date])
+  @@index([account_id])
+}
+
+model Category {
+  id           String     @id @default(uuid()) @db.Uuid
+  name         String
+  group        String
+
+  budgets      Budget[]
+  transactions Transaction[]
+  rules        Rule[]
+}
+
+model Budget {
+  id                   String   @id @default(uuid()) @db.Uuid
+  user_id              String   @db.Uuid
+  category_id          String   @db.Uuid
+  month                String
+  limit_cents          Int
+  thresholds_enabled   Boolean  @default(true)
+  threshold_50_sent    Boolean  @default(false)
+  threshold_80_sent    Boolean  @default(false)
+  threshold_100_sent   Boolean  @default(false)
+
+  user                 User     @relation(fields: [user_id], references: [id])
+  category             Category @relation(fields: [category_id], references: [id])
+
+  @@unique([user_id, category_id, month])
+}
+
+model Rule {
+  id          String        @id @default(uuid()) @db.Uuid
+  user_id     String        @db.Uuid
+  match_type  RuleMatchType
+  match_value String
+  category_id String        @db.Uuid
+  priority    Int
+  is_active   Boolean       @default(true)
+
+  user        User          @relation(fields: [user_id], references: [id])
+  category    Category      @relation(fields: [category_id], references: [id])
+
+  @@index([user_id, priority])
+}
+
+model Notification {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  type       String
+  title      String
+  body       String
+  created_at DateTime  @default(now())
+  read_at    DateTime?
+
+  user       User      @relation(fields: [user_id], references: [id])
+}
+

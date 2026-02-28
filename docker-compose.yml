@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ledgerlens-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ledgerlens
+      POSTGRES_PASSWORD: ledgerlens
+      POSTGRES_DB: ledgerlens
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: ledgerlens-api
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://ledgerlens:ledgerlens@postgres:5432/ledgerlens?schema=public
+      JWT_SECRET: super-secret-jwt
+      CSRF_SECRET: super-secret-csrf
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "3000:3000"
+    command: >
+      sh -c "npm run prisma:migrate-deploy &&
+             npm run start:prod"
+
+volumes:
+  postgres_data:
+
