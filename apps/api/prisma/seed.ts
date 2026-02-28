@@ -1,34 +1,188 @@
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { AccountType, Provider } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 const DEMO_EMAIL = 'demo@ledgerlens.local';
 const DEMO_PASSWORD = 'Password123!';
 
-async function main() {
-  const password_hash = await argon2.hash(DEMO_PASSWORD);
+/** Default categories for mobile contract (idempotent upsert by name). */
+const DEFAULT_CATEGORIES = [
+  { name: 'Groceries', group: 'Essentials' },
+  { name: 'Gas', group: 'Essentials' },
+  { name: 'Rent', group: 'Essentials' },
+  { name: 'Utilities', group: 'Essentials' },
+  { name: 'Dining', group: 'Discretionary' },
+  { name: 'Entertainment', group: 'Discretionary' },
+  { name: 'Shopping', group: 'Discretionary' },
+  { name: 'Fees', group: 'Financial' },
+  { name: 'Interest', group: 'Financial' },
+  { name: 'Transfer', group: 'Other' },
+  { name: 'Uncategorized', group: 'Other' },
+];
 
-  const existing = await prisma.user.findUnique({ where: { email: DEMO_EMAIL } });
-  if (existing) {
+function seededRandom(seed: number) {
+  return () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0xffffffff;
+  };
+}
+
+async function main() {
+  const now = new Date();
+  for (const { name, group } of DEFAULT_CATEGORIES) {
+    const existing = await prisma.category.findFirst({ where: { name } });
+    if (!existing) {
+      await prisma.category.create({ data: { name, group } });
+    }
+  }
+  const categories = await prisma.category.findMany();
+  const groceries = categories.find((c) => c.name === 'Groceries')!;
+  const dining = categories.find((c) => c.name === 'Dining')!;
+  const rent = categories.find((c) => c.name === 'Rent')!;
+  const transfer = categories.find((c) => c.name === 'Transfer')!;
+  const uncategorized = categories.find((c) => c.name === 'Uncategorized')!;
+  const utilities = categories.find((c) => c.name === 'Utilities')!;
+
+  const password_hash = await argon2.hash(DEMO_PASSWORD);
+  let user = await prisma.user.findUnique({ where: { email: DEMO_EMAIL } });
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        email: DEMO_EMAIL,
+        password_hash,
+        include_pending_in_budget: true,
+        notify_on_pending: true,
+      },
+    });
+    console.log('Created demo user:', DEMO_EMAIL);
+  } else {
     await prisma.user.update({
       where: { email: DEMO_EMAIL },
       data: { password_hash },
     });
-    console.log('Demo user already exists; password hash updated.');
-    return;
+    console.log('Demo user exists; password hash updated.');
   }
 
-  await prisma.user.create({
-    data: {
-      email: DEMO_EMAIL,
-      password_hash,
-      include_pending_in_budget: false,
-      notify_on_pending: false,
-    },
+  let accounts = await prisma.connectedAccount.findMany({
+    where: { user_id: user.id, provider: Provider.MOCK },
   });
+  if (accounts.length === 0) {
+    accounts = await Promise.all([
+      prisma.connectedAccount.create({
+        data: { user_id: user.id, provider: Provider.MOCK, name: 'Mock Checking', type: AccountType.CHECKING },
+      }),
+      prisma.connectedAccount.create({
+        data: { user_id: user.id, provider: Provider.MOCK, name: 'Mock Credit Card', type: AccountType.CREDIT },
+      }),
+      prisma.connectedAccount.create({
+        data: { user_id: user.id, provider: Provider.MOCK, name: 'Mock Debit', type: AccountType.DEBIT },
+      }),
+    ]);
+    console.log('Created 3 mock accounts.');
+  }
 
-  console.log('Seed complete. Created demo user:', DEMO_EMAIL);
+  const txCount = await prisma.transaction.count({ where: { user_id: user.id } });
+  if (txCount === 0) {
+    const rng = seededRandom(42);
+    const merchants = ['Whole Foods', "Trader Joe's", 'Uber', 'Starbucks', 'Electric Co', 'Payroll Inc.', 'Target', 'Amazon'];
+
+    for (let i = 0; i < 90; i++) {
+      const day = new Date(now);
+      day.setDate(day.getDate() - i);
+      for (const account of accounts) {
+        const n = 1 + Math.floor(rng() * 2);
+        for (let j = 0; j < n; j++) {
+          const merchant = merchants[Math.floor(rng() * merchants.length)];
+          const amount = Math.floor(rng() * 15000) + 500;
+          const isIncome = merchant === 'Payroll Inc.';
+          const signed = isIncome ? amount : -amount;
+          const effective = new Date(day);
+          effective.setHours(10 + Math.floor(rng() * 8), Math.floor(rng() * 60), 0, 0);
+          const category =
+            merchant === 'Whole Foods' || merchant === "Trader Joe's"
+              ? groceries
+              : merchant === 'Starbucks'
+                ? dining
+                : merchant === 'Electric Co'
+                  ? rent
+                  : merchant === 'Payroll Inc.'
+                    ? transfer
+                    : uncategorized;
+
+          await prisma.transaction.create({
+            data: {
+              user_id: user.id,
+              account_id: account.id,
+              amount_cents: signed,
+              currency: 'USD',
+              effective_date: effective,
+              posted_at: effective,
+              merchant_name: merchant,
+              description: `${merchant} tx`,
+              status: 'POSTED',
+              category_id: category.id,
+              provider: Provider.MOCK,
+              provider_transaction_id: `T_${account.id}_${i}_${j}`,
+            },
+          });
+        }
+      }
+    }
+    console.log('Created ~200 sample transactions.');
+  }
+
+  const currentMonth = now.toISOString().slice(0, 7);
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+  const budgetCategories = [groceries, dining, rent, utilities, uncategorized];
+  const limits = [60000, 30000, 180000, 30000, 40000];
+  for (const month of [prevMonth, currentMonth]) {
+    for (let k = 0; k < budgetCategories.length; k++) {
+      await prisma.budget.upsert({
+        where: {
+          user_id_category_id_month: {
+            user_id: user.id,
+            category_id: budgetCategories[k].id,
+            month,
+          },
+        },
+        create: {
+          user_id: user.id,
+          category_id: budgetCategories[k].id,
+          month,
+          limit_cents: limits[k],
+        },
+        update: {},
+      });
+    }
+  }
+  console.log('Created budgets for current and previous month.');
+
+  const rulesCount = await prisma.rule.count({ where: { user_id: user.id } });
+  if (rulesCount === 0) {
+    await prisma.rule.createMany({
+      data: [
+        { user_id: user.id, match_type: 'MERCHANT_CONTAINS', match_value: 'UBER', category_id: uncategorized.id, priority: 1 },
+        { user_id: user.id, match_type: 'MERCHANT_CONTAINS', match_value: 'STARBUCKS', category_id: dining.id, priority: 2 },
+        { user_id: user.id, match_type: 'MERCHANT_CONTAINS', match_value: 'WHOLE', category_id: groceries.id, priority: 3 },
+      ],
+    });
+    console.log('Created 3 rules.');
+  }
+
+  const notifCount = await prisma.notification.count({ where: { user_id: user.id } });
+  if (notifCount === 0) {
+    await prisma.notification.createMany({
+      data: [
+        { user_id: user.id, type: 'WELCOME', title: 'Welcome to LedgerLens', body: 'Your demo data is ready.' },
+        { user_id: user.id, type: 'INFO', title: 'Budgets created', body: 'Sample budgets are set for the last two months.' },
+      ],
+    });
+    console.log('Created 2 notifications.');
+  }
+
+  console.log('Seed complete.');
 }
 
 main()

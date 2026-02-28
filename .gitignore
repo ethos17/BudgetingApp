@@ -30,3 +30,6 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 *.lcov
+cookies.txt
+apps/api/prisma/*.js
+apps/api/prisma/*.js.map
