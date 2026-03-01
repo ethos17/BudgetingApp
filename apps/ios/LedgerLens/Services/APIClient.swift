@@ -10,7 +10,7 @@ enum APIError: Error {
 final class APIClient {
     static let shared = APIClient()
 
-    var baseURL: String = "http://127.0.0.1:3000" {
+    var baseURL: String = "http://127.0.0.1:3000/api" {
         didSet {
             if let url = URL(string: baseURL) {
                 session.configuration.urlCredentialStorage = nil

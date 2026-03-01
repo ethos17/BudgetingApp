@@ -26,6 +26,9 @@
 		B0010000000000000000011 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000011 /* SettingsView.swift */; };
 		B0010000000000000000012 /* TransactionDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000012 /* TransactionDetailSheet.swift */; };
 		B0010000000000000000013 /* TransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000013 /* TransactionsView.swift */; };
+		B0010000000000000000014 /* PlaidService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000014 /* PlaidService.swift */; };
+		B0010000000000000000015 /* PlaidLinkPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000015 /* PlaidLinkPresenter.swift */; };
+		B0010000000000000000016 /* LinkKit in Frameworks */ = {isa = PBXBuildFile; productRef = R00100000000000000000002 /* LinkKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +52,8 @@
 		F0010000000000000000011 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		F0010000000000000000012 /* TransactionDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionDetailSheet.swift; sourceTree = "<group>"; };
 		F0010000000000000000013 /* TransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsView.swift; sourceTree = "<group>"; };
+		F0010000000000000000014 /* PlaidService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaidService.swift; sourceTree = "<group>"; };
+		F0010000000000000000015 /* PlaidLinkPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaidLinkPresenter.swift; sourceTree = "<group>"; };
 		I00100000000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -57,6 +62,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B0010000000000000000016 /* LinkKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -114,6 +120,7 @@
 			children = (
 				F00100000000000000000003 /* APIClient.swift */,
 				F00100000000000000000004 /* SessionStore.swift */,
+				F0010000000000000000014 /* PlaidService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -182,6 +189,7 @@
 			isa = PBXGroup;
 			children = (
 				F0010000000000000000000B /* AccountsView.swift */,
+				F0010000000000000000015 /* PlaidLinkPresenter.swift */,
 			);
 			path = Accounts;
 			sourceTree = "<group>";
@@ -210,6 +218,9 @@
 			dependencies = (
 			);
 			name = LedgerLensApp;
+			packageProductDependencies = (
+				R00100000000000000000002 /* LinkKit */,
+			);
 			productName = LedgerLensApp;
 			productReference = E00100000000000000000001 /* LedgerLensApp.app */;
 			productType = "com.apple.product-type.application";
@@ -233,6 +244,9 @@
 				Base,
 			);
 			mainGroup = G00100000000000000000001;
+			packageReferences = (
+				R00100000000000000000001 /* XCRemoteSwiftPackageReference "plaid-link-ios-spm" */,
+			);
 			productRefGroup = G00100000000000000000004 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -276,6 +290,8 @@
 				B0010000000000000000011 /* SettingsView.swift in Sources */,
 				B0010000000000000000012 /* TransactionDetailSheet.swift in Sources */,
 				B0010000000000000000013 /* TransactionsView.swift in Sources */,
+				B0010000000000000000014 /* PlaidService.swift in Sources */,
+				B0010000000000000000015 /* PlaidLinkPresenter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -414,6 +430,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		R00100000000000000000001 /* XCRemoteSwiftPackageReference "plaid-link-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/plaid/plaid-link-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		R00100000000000000000002 /* LinkKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = R00100000000000000000001 /* XCRemoteSwiftPackageReference "plaid-link-ios-spm" */;
+			productName = LinkKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = P00100000000000000000001 /* Project object */;
 }

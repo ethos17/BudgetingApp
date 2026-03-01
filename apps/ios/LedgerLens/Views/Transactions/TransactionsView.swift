@@ -18,6 +18,14 @@ struct TransactionsView: View {
                 }
             }
             .navigationTitle("Transactions")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Sync") {
+                        Task { await viewModel.syncPlaid() }
+                    }
+                    .disabled(viewModel.isSyncing)
+                }
+            }
             .task {
                 await viewModel.loadAccounts()
                 await viewModel.load()

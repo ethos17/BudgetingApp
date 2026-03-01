@@ -91,9 +91,41 @@ Use these credentials to verify the full flow:
 
 ## Implementation notes
 
+- **Plaid**: **LinkKit** is included via Swift Package Manager (`plaid-link-ios-spm`). **PlaidService** calls `POST /plaid/link-token`, `POST /plaid/exchange`, and `POST /plaid/sync`; **PlaidLinkPresenter** presents the Plaid Link sheet and forwards the public token on success.
 - **APIClient** (`Services/APIClient.swift`): `baseURL = "http://127.0.0.1:3000"`; uses default `URLSession` so **httpOnly cookies** are stored and sent automatically (no manual cookie reading).
 - **SessionStore** (`Services/SessionStore.swift`): On launch calls **GET /me** to determine session; provides login/signup/logout; **handleAPIError** forces logout on **401**.
 - **Transactions**: List uses **GET /transactions** with **cursor** and **nextCursor** for “Load more”; detail sheet and swipe actions use **PATCH /transactions/:id** for `is_excluded` and `category_id`.
 - **Settings**: **GET /settings** and **PATCH /settings** for the two toggles; optimistic UI with “Saved” feedback.
 
-No SPM or other dependencies are required.
+---
+
+## 7. Plaid Sandbox (Connect Bank + Sync)
+
+The app can link real (sandbox) banks via Plaid and sync transactions.
+
+### Backend requirements
+
+- In `apps/api/.env` set Plaid and encryption env vars (see repo root **README → Plaid Sandbox**).
+- Restart the API so `/plaid/link-token`, `/plaid/exchange`, and `/plaid/sync` are available.
+
+### iOS: Plaid Link SDK (Swift Package Manager)
+
+The project adds Plaid Link via SPM. If you opened the project before this was added:
+
+1. In Xcode: **File → Add Package Dependencies…**
+2. Enter: `https://github.com/plaid/plaid-link-ios-spm.git`
+3. Add dependency to the **LedgerLensApp** target; use **LinkKit** (version “Up to Next Major” from 6.0.0).
+4. Resolve and build.
+
+### Using Plaid in the Simulator
+
+| Step | Action | Expected result |
+|------|--------|-----------------|
+| 1 | Backend running with Plaid env set; app logged in. | — |
+| 2 | **Accounts** tab → **Connect Bank (Plaid)** (toolbar). | App requests link token; Plaid Link sheet opens. |
+| 3 | In Plaid Link, choose **Plaid Sandbox** and sign in with `user_good` / `pass_good`. | Link succeeds; sheet dismisses; new PLAID accounts appear in the list. |
+| 4 | **Transactions** tab → **Sync** (toolbar). | **POST /plaid/sync** runs; transactions list refreshes with synced items. |
+| 5 | Cancel Plaid Link or trigger an error. | Sheet dismisses; inline error message appears (tap to dismiss). |
+
+- **Mock accounts** (e.g. from **Add account** or seed) and **PLAID** accounts both appear on the Accounts screen.
+- Access tokens are never sent to the client; they are encrypted and stored only on the backend.

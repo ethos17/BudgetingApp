@@ -12,6 +12,8 @@ final class AccountsViewModel: ObservableObject {
     @Published var accountName = ""
     @Published var selectedType = "CHECKING"
     @Published var isLinking = false
+    @Published var plaidLinkToken: String?
+    @Published var plaidError: String?
 
     private let client = APIClient.shared
     private let sessionStore: SessionStore
@@ -78,5 +80,54 @@ final class AccountsViewModel: ObservableObject {
         accountName = ""
         selectedType = "CHECKING"
         addSheetError = nil
+    }
+
+    func startPlaidLink() async {
+        plaidError = nil
+        plaidLinkToken = nil
+        do {
+            let token = try await PlaidService.getLinkToken()
+            plaidLinkToken = token
+        } catch let e as APIError {
+            sessionStore.handleAPIError(e)
+            if case .httpStatus(401, _) = e { } else {
+                switch e {
+                case .backend(let b): plaidError = b.error.message
+                case .httpStatus(_, let m): plaidError = m ?? "Could not get link token."
+                default: plaidError = "Could not get link token."
+                }
+            }
+        } catch {
+            plaidError = error.localizedDescription
+        }
+    }
+
+    func onPlaidSuccess(publicToken: String) {
+        plaidLinkToken = nil
+        Task {
+            isLinking = true
+            defer { isLinking = false }
+            plaidError = nil
+            do {
+                _ = try await PlaidService.exchange(publicToken: publicToken)
+                await load()
+            } catch let e as APIError {
+                sessionStore.handleAPIError(e)
+                switch e {
+                case .backend(let b): plaidError = b.error.message
+                case .httpStatus(_, let m): plaidError = m ?? "Could not link account."
+                default: plaidError = "Could not link account."
+                }
+            } catch {
+                plaidError = error.localizedDescription
+            }
+        }
+    }
+
+    func onPlaidExit(message: String?) {
+        plaidLinkToken = nil
+        if let msg = message, !msg.isEmpty {
+            plaidError = msg
+        }
     }
 }

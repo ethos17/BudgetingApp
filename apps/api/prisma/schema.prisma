@@ -12,6 +12,7 @@ enum Provider {
   SOFI
   DISCOVER
   MOCK
+  PLAID
 }
 
 enum AccountType {
@@ -39,22 +40,41 @@ model User {
   updated_at                 DateTime  @updatedAt
 
   accounts                   ConnectedAccount[]
+  plaid_items                PlaidItem[]
   transactions               Transaction[]
   budgets                    Budget[]
   rules                      Rule[]
   notifications              Notification[]
 }
 
-model ConnectedAccount {
-  id           String    @id @default(uuid()) @db.Uuid
-  user_id      String    @db.Uuid
-  provider     Provider
-  name         String
-  type         AccountType
-  last_sync_at DateTime?
-  created_at   DateTime  @default(now())
+model PlaidItem {
+  id                      String    @id @default(uuid()) @db.Uuid
+  user_id                 String    @db.Uuid
+  item_id                 String    @unique
+  access_token_ciphertext String
+  cursor                  String?
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
 
-  user         User      @relation(fields: [user_id], references: [id])
+  user         User               @relation(fields: [user_id], references: [id])
+  accounts     ConnectedAccount[]
+
+  @@index([user_id])
+}
+
+model ConnectedAccount {
+  id                String    @id @default(uuid()) @db.Uuid
+  user_id           String    @db.Uuid
+  provider          Provider
+  name              String
+  type              AccountType
+  last_sync_at      DateTime?
+  plaid_item_id     String?   @db.Uuid
+  plaid_account_id  String?
+  created_at        DateTime  @default(now())
+
+  user        User       @relation(fields: [user_id], references: [id])
+  plaid_item  PlaidItem? @relation(fields: [plaid_item_id], references: [id], onDelete: SetNull)
   transactions Transaction[]
 }
 

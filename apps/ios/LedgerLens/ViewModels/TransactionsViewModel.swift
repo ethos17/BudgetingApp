@@ -12,6 +12,7 @@ final class TransactionsViewModel: ObservableObject {
     @Published var nextCursor: String?
     @Published var isLoading = false
     @Published var loadingMore = false
+    @Published var isSyncing = false
     @Published var errorMessage: String?
 
     private let client = APIClient.shared
@@ -90,6 +91,25 @@ final class TransactionsViewModel: ObservableObject {
             var updated = transactions[idx]
             // We don't have a full updated model from PATCH response shape - reload or patch locally
             await load(append: false)
+        }
+    }
+
+    func syncPlaid() async {
+        isSyncing = true
+        errorMessage = nil
+        defer { isSyncing = false }
+        do {
+            _ = try await PlaidService.sync()
+            await load(append: false)
+        } catch let e as APIError {
+            if case .httpStatus(401, _) = e { sessionStore.handleAPIError(e) }
+            switch e {
+            case .backend(let b): errorMessage = b.error.message
+            case .httpStatus(_, let m): errorMessage = m ?? "Sync failed."
+            default: errorMessage = "Sync failed."
+            }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 

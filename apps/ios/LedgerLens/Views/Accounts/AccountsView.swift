@@ -29,11 +29,41 @@ struct AccountsView: View {
                         Image(systemName: "plus.circle.fill")
                     }
                 }
+                ToolbarItem(placement: .secondaryAction) {
+                    Button("Connect Bank (Plaid)") {
+                        Task { await viewModel.startPlaidLink() }
+                    }
+                }
             }
             .task { await viewModel.load() }
             .refreshable { await viewModel.load() }
             .sheet(isPresented: $showAddSheet) {
                 addAccountSheet
+            }
+            .sheet(isPresented: Binding(
+                get: { viewModel.plaidLinkToken != nil },
+                set: { if !$0 { viewModel.plaidLinkToken = nil } }
+            )) {
+                if let token = viewModel.plaidLinkToken {
+                    PlaidLinkPresenter(
+                        linkToken: token,
+                        onSuccess: { viewModel.onPlaidSuccess(publicToken: $0) },
+                        onExit: { viewModel.onPlaidExit(message: $0) }
+                    )
+                }
+            }
+            .overlay(alignment: .top) {
+                if let msg = viewModel.plaidError, !msg.isEmpty {
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.red.opacity(0.9))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .padding(.top, 8)
+                        .onTapGesture { viewModel.plaidError = nil }
+                }
             }
         }
     }
